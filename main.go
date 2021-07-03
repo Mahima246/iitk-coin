@@ -17,7 +17,7 @@ import (
 )
 type User struct {
 	Name string `json:"Name"`
-	Coins int `json:"Coins"`
+	Coins float64 `json:"Coins"`
 	Rollno     string `json:"Rollno"`
 	Passwd     string `json:"Passwd"`
 	Batch      string `json:"Batch"`
@@ -33,12 +33,12 @@ type auth struct {
 
 type coinrew struct{
 	Rollno string `json:"Rollno"`
-	Coins int `json:"Coins"`
+	Coins float64 `json:"Coins"`
 }
 type cointrans struct{
 	Rollno1 string `json:"Rollno1"`
 	Rollno2 string `json:"Rollno2"`
-	Coins int `json:"Coins"`
+	Coins float64 `json:"Coins"`
 }
 
 type vw struct{
@@ -225,6 +225,37 @@ func view(w http.ResponseWriter, r *http.Request){
 		return
 	}
 
+	c, err := r.Cookie("token")
+	if err != nil {
+		if err == http.ErrNoCookie {
+			http.Error(w, "You are Unauthorized! ", http.StatusUnauthorized)
+			return
+		}
+		// For any other type of error, return a bad request status
+		http.Error(w, "Bad Request ", http.StatusBadRequest)
+		return
+	}
+	// Get the JWT string from the cookie
+	tknStr := c.Value
+	// Initialize a new instance of `Claims`
+	claims := &Claims{}
+
+	tkn, err := jwt.ParseWithClaims(tknStr, claims, func(token *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
+	if err != nil {
+		if err == jwt.ErrSignatureInvalid {
+			http.Error(w, "You are Unauthorized! ", http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, "Bad Request ", http.StatusBadRequest)
+		return
+	}
+	if !tkn.Valid {
+		http.Error(w, "You are Unauthorized! ", http.StatusUnauthorized)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	var vw vw
 	body, _ := ioutil.ReadAll(r.Body)
@@ -261,6 +292,7 @@ func view(w http.ResponseWriter, r *http.Request){
 
 
 func reward(w http.ResponseWriter, r *http.Request){
+
 	if err := r.ParseForm(); err != nil {
 		fmt.Fprintf(w, "ParseForm() err: %v", err)
 		return
@@ -269,18 +301,52 @@ func reward(w http.ResponseWriter, r *http.Request){
 		http.Error(w, "Method is not supported.", http.StatusNotFound)
 		return
 	}
+	c, err := r.Cookie("token")
+	if err != nil {
+		if err == http.ErrNoCookie {
+			http.Error(w, "You are Unauthorized! ", http.StatusUnauthorized)
+			return
+		}
+		// For any other type of error, return a bad request status
+		http.Error(w, "Bad Request ", http.StatusBadRequest)
+		return
+	}
+	// Get the JWT string from the cookie
+	tknStr := c.Value
+	// Initialize a new instance of `Claims`
+	claims := &Claims{}
+
+	tkn, err := jwt.ParseWithClaims(tknStr, claims, func(token *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
+	if err != nil {
+		if err == jwt.ErrSignatureInvalid {
+			http.Error(w, "You are Unauthorized! ", http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, "Bad Request ", http.StatusBadRequest)
+		return
+	}
+	if !tkn.Valid {
+		http.Error(w, "You are Unauthorized! ", http.StatusUnauthorized)
+		return
+	}
+	// w.Write([]byte(fmt.Sprintf("Welcome to IITK coins %s!", claims.Rollno)))
+	
+	
 	w.Header().Set("Content-Type", "application/json")
 	var coin coinrew	
 	body, _ := ioutil.ReadAll(r.Body)
-	err := json.Unmarshal(body, &coin)
-	if err != nil {
-		log.Fatal(err)
+	err2 := json.Unmarshal(body, &coin)
+	if err2 != nil {
+		log.Fatal(err2)
 	}
 
-	var coins int
+	var coins float64
 	db, _ := sql.Open("sqlite3", "./sqlite-database.db")
 	res := db.QueryRow("SELECT Coins FROM User WHERE Rollno = ?", coin.Rollno).Scan(&coins)
 	
+
 	if res == sql.ErrNoRows {
 		http.Error(w, "No User found!", http.StatusNotFound)
 		return
@@ -291,6 +357,18 @@ func reward(w http.ResponseWriter, r *http.Request){
 		log.Println(res)
 	}
 
+	var isAdmin bool
+	res2 := db.QueryRow("SELECT IsAdmin FROM User WHERE Rollno = ?", coin.Rollno).Scan(&isAdmin)
+
+	if res2 == sql.ErrNoRows {
+		http.Error(w, "Only Admins are allowed to make this transaction ", http.StatusNotFound)
+		return
+	}
+
+	if res2 != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		log.Println(res2)
+	}
 	coins = coins + coin.Coins
 
 	log.Println(coins)
@@ -321,19 +399,55 @@ func transfer(w http.ResponseWriter, r *http.Request){
 		http.Error(w, "Method is not supported.", http.StatusNotFound)
 		return
 	}
+
+	c, err := r.Cookie("token")
+	if err != nil {
+		if err == http.ErrNoCookie {
+			http.Error(w, "You are Unauthorized! ", http.StatusUnauthorized)
+			return
+		}
+		// For any other type of error, return a bad request status
+		http.Error(w, "Bad Request ", http.StatusBadRequest)
+		return
+	}
+	// Get the JWT string from the cookie
+	tknStr := c.Value
+	// Initialize a new instance of `Claims`
+	claims := &Claims{}
+
+	tkn, err := jwt.ParseWithClaims(tknStr, claims, func(token *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
+	if err != nil {
+		if err == jwt.ErrSignatureInvalid {
+			http.Error(w, "You are Unauthorized! ", http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, "Bad Request ", http.StatusBadRequest)
+		return
+	}
+	if !tkn.Valid {
+		http.Error(w, "You are Unauthorized! ", http.StatusUnauthorized)
+		return
+	}
+
+
+
 	w.Header().Set("Content-Type", "application/json")
 	var cointr cointrans	
 	body, _ := ioutil.ReadAll(r.Body)
-	err := json.Unmarshal(body, &cointr)
-	if err != nil {
-		log.Fatal(err)
+	err2 := json.Unmarshal(body, &cointr)
+	if err2 != nil {
+		log.Fatal(err2)
 	}
 
-	var coins1 int
-	var coins2 int
+	var coins1 float64
+	var coins2 float64
+	var batch1 int
+	var batch2 int
 	db, _ := sql.Open("sqlite3", "./sqlite-database.db")
-	res := db.QueryRow("SELECT Coins FROM User WHERE Rollno = ?", cointr.Rollno1).Scan(&coins1)
-	res2 := db.QueryRow("SELECT Coins FROM User WHERE Rollno = ?", cointr.Rollno2).Scan(&coins2)
+	res := db.QueryRow("SELECT Coins, Batch FROM User WHERE Rollno = ?", cointr.Rollno1).Scan(&coins1,&batch1)
+	res2 := db.QueryRow("SELECT Coins, Batch FROM User WHERE Rollno = ?", cointr.Rollno2).Scan(&coins2,&batch2)
 	
 	if res == sql.ErrNoRows {
 		http.Error(w, "1st User Not found!", http.StatusNotFound)
@@ -364,9 +478,22 @@ func transfer(w http.ResponseWriter, r *http.Request){
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Fatalln(err1.Error())
 	}
-	_, err1 = statement1.Exec(coins1-cointr.Coins,cointr.Rollno1)
-	if err1 != nil {
-		log.Fatalln(err1.Error())
+	// _, err1 = statement1.Exec(coins1-cointr.Coins,cointr.Rollno1)
+	// if err1 != nil {
+	// 	log.Fatalln(err1.Error())
+	// }
+
+	if batch1==batch2{
+		_, err = statement1.Exec((coins1-cointr.Coins*0.8) ,cointr.Rollno1 )
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+	}
+	if batch1!=batch2{
+		_, err = statement1.Exec((coins1-cointr.Coins*0.67),cointr.Rollno1)
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
 	}
 
 	statement, err := db.Prepare("UPDATE User SET Coins = ? WHERE Rollno = ?")
@@ -375,9 +502,17 @@ func transfer(w http.ResponseWriter, r *http.Request){
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Fatalln(err.Error())
 	}
-	_, err = statement.Exec(coins2+cointr.Coins,cointr.Rollno2)
-	if err != nil {
-		log.Fatalln(err.Error())
+	if batch1==batch2{
+		_, err = statement.Exec((coins2+cointr.Coins*0.8) ,cointr.Rollno2 )
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+	}
+	if batch1!=batch2{
+		_, err = statement.Exec((coins2+cointr.Coins*0.67),cointr.Rollno2)
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
 	}
 }
 
@@ -421,7 +556,7 @@ func createTable(db *sql.DB) {
 		Name TEXT,
 		Passwd TEXT,
 		Rollno TEXT,
-		Coins INTEGER,
+		Coins REAL,
 		Batch TEXT,
 		EventsPart TEXT,
 		IsAdmin INTEGER,
