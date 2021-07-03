@@ -266,7 +266,7 @@ func view(w http.ResponseWriter, r *http.Request){
 		return
 	}
 	var rollno = vw.Rollno
-	var coin int
+	var coin float64
 	db, _ := sql.Open("sqlite3", "./sqlite-database.db")
 	res := db.QueryRow("SELECT Coins FROM User WHERE Rollno = ?", rollno).Scan(&coin)
 	
@@ -279,7 +279,7 @@ func view(w http.ResponseWriter, r *http.Request){
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		log.Println(res)
 	}
-	s := strconv.Itoa(coin)
+	s := strconv.FormatFloat(coin, 'E', -1, 32)
 	log.Println(s)
 
 	w.Write([]byte(fmt.Sprintf("Coins in your wallet: %s!", s)))
