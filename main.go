@@ -443,8 +443,8 @@ func transfer(w http.ResponseWriter, r *http.Request){
 
 	var coins1 float64
 	var coins2 float64
-	var batch1 int
-	var batch2 int
+	var batch1 string
+	var batch2 string
 	db, _ := sql.Open("sqlite3", "./sqlite-database.db")
 	res := db.QueryRow("SELECT Coins, Batch FROM User WHERE Rollno = ?", cointr.Rollno1).Scan(&coins1,&batch1)
 	res2 := db.QueryRow("SELECT Coins, Batch FROM User WHERE Rollno = ?", cointr.Rollno2).Scan(&coins2,&batch2)
